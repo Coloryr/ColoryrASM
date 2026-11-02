@@ -11,7 +11,7 @@ swapchain 上覆盖贴图，并把游戏仍需要的系统光标模式临时替�
 在启动器中使用构建出来的 agent（已有 `-javaagent` 时替换原来的路径）：
 
 ```text
--javaagent:D:\project2026\ColorMCASM\build\libs\ColoryrASM-1.2.1-all.jar
+-javaagent:D:\project2026\ColorMCASM\build\libs\ColoryrASM-1.2.2-all.jar
 ```
 
 支持入口：
@@ -63,7 +63,7 @@ $env:PATH = "$env:JAVA_HOME/bin;$env:PATH"
 
 本机 Windows 上三组测试实际执行通过。支持范围为上述 LWJGL2 / GLFW 入口，
 尚未逐个启动各版本 Minecraft，也未覆盖所有 mod loader 和操作系统。
-产物为 `build/libs/ColoryrASM-1.2.1-all.jar`，不打包 LWJGL、shaderc 或原生库。
+产物为 `build/libs/ColoryrASM-1.2.2-all.jar`，不打包 LWJGL、shaderc 或原生库。
 
 修改 GLSL 或默认 PNG 后，运行 `./gradlew.bat compileCursorAssets` 再构建（这个任务会
 重新生成圆环贴图与 SPIR-V）。

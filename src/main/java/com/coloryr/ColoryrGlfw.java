@@ -49,6 +49,9 @@ public final class ColoryrGlfw {
     /** 上一帧的抓取状态，切换时清掉偏移 */
     private static boolean lastGrabbed;
 
+    /** 游戏主窗口，用来读窗口属性（是否在前台） */
+    private static volatile long mainWindow;
+
     /** 光标回调所属的窗口，光标模式下用来移动系统光标 */
     private static volatile long cursorWindow;
 
@@ -69,6 +72,20 @@ public final class ColoryrGlfw {
     private static boolean errorPrinted;
 
     private ColoryrGlfw() {
+    }
+
+    /**
+     * 绑定游戏主窗口
+     *
+     * 由 `glfwCreateWindow` 返回处注入调用，顺带拿到 GLFW 的类加载器，
+     * 用它反射解析窗口属性方法。
+     *
+     * - `window`: GLFW 窗口句柄
+     * - `loader`: GLFW 类的类加载器
+     */
+    public static void attach(long window, ClassLoader loader) {
+        mainWindow = window;
+        initGlfwApi(loader);
     }
 
     /** 留下游戏注册的键盘回调 */
@@ -136,6 +153,7 @@ public final class ColoryrGlfw {
     /** 游戏主线程每帧调用一次，把队列里的事件交给游戏 */
     public static void dispatch() {
         try {
+            checkFocus();
             boolean grabbed = ColoryrInput.isGrabbed();
             if (grabbed != lastGrabbed) {
                 lastGrabbed = grabbed;
@@ -210,6 +228,20 @@ public final class ColoryrGlfw {
             }
         } catch (Throwable e) {
             printError("dispatch", e);
+        }
+    }
+
+    /** 每帧检查窗口是否在前台，变化时上报启动器 */
+    private static void checkFocus() {
+        long window = mainWindow;
+        if (window == 0L || glfwGetWindowAttrib == null) {
+            return;
+        }
+        try {
+            boolean focused = ((Integer) glfwGetWindowAttrib.invoke(null, window, GLFW_FOCUSED)) != 0;
+            ColoryrPackBuilder.setFocus(focused);
+        } catch (Throwable e) {
+            printError("window focus", e);
         }
     }
 

@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
  * - 1 鼠标状态：uuid 字符串 + 是否抓取鼠标
  * - 9 游戏通道：uuid 字符串
  * - 11 窗口大小：uuid 字符串 + 宽 + 高
+ * - 13 窗口聚焦：uuid 字符串 + 是否在前台，状态变化时才发
  */
 public class ColoryrPackBuilder {
 
@@ -44,6 +45,7 @@ public class ColoryrPackBuilder {
     public static final int TypeSetTitle = 10;
     public static final int TypeGameWindowSize = 11;
     public static final int TypeGameAuth = 12;
+    public static final int TypeGameWindowFocus = 13;
 
     /** 消息类型头的长度，单位字节 */
     private static final int PACK_HEADER_SIZE = 4;
@@ -67,6 +69,9 @@ public class ColoryrPackBuilder {
     }
 
     private static final Queue<InfoObj> packetMap = new ConcurrentLinkedDeque<>();
+
+    /** 上次上报的窗口聚焦状态；null 表示还没上报过 */
+    private static Boolean lastFocus;
 
     static class InfoObj {
         public String ip;
@@ -145,6 +150,39 @@ public class ColoryrPackBuilder {
         buf.writeInt(ColoryrASM.uuidBytes.length);
         buf.writeBytes(ColoryrASM.uuidBytes);
         buf.writeBoolean(grab);
+        return buf;
+    }
+
+    /**
+     * 上报窗口聚焦状态
+     *
+     * 只在状态变化时发送；没连上启动器时先尝试初始化连接。
+     *
+     * - `focus`: 窗口是否在前台
+     */
+    public static void setFocus(boolean focus) {
+        if (!ColoryrASM.run) {
+            if (ColoryrASM.init) {
+                return;
+            }
+            ColoryrASM.init();
+            if (!ColoryrASM.run) {
+                return;
+            }
+        }
+        if (lastFocus != null && lastFocus == focus) {
+            return;
+        }
+        lastFocus = focus;
+        ColoryrASM.client.sendMessage(buildFocus(focus));
+    }
+
+    static ByteBuf buildFocus(boolean focus) {
+        ByteBuf buf = Unpooled.buffer();
+        buf.writeInt(TypeGameWindowFocus);
+        buf.writeInt(ColoryrASM.uuidBytes.length);
+        buf.writeBytes(ColoryrASM.uuidBytes);
+        buf.writeBoolean(focus);
         return buf;
     }
 

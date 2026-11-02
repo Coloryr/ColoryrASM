@@ -265,6 +265,10 @@ public class Lwjgl3Asm implements ClassFileTransformer {
                 mv.visitVarInsn(Opcodes.LLOAD, 1);
                 mv.visitMethodInsn(Opcodes.INVOKESTATIC, "org/lwjgl/glfw/GLFW", "coloryrAddWindow", "(J)V", false);
                 mv.visitVarInsn(Opcodes.LLOAD, 1);
+                mv.visitLdcInsn(Type.getObjectType("org/lwjgl/glfw/GLFW"));
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getClassLoader", "()Ljava/lang/ClassLoader;", false);
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, "com/coloryr/ColoryrGlfw", "attach", "(JLjava/lang/ClassLoader;)V", false);
+                mv.visitVarInsn(Opcodes.LLOAD, 1);
             }
             super.visitInsn(opcode);
         }

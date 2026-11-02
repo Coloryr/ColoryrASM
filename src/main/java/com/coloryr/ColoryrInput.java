@@ -85,6 +85,9 @@ public final class ColoryrInput {
     private static boolean keyboardErrorPrinted;
     private static boolean mouseErrorPrinted;
 
+    /** 解析或调用 `Display.isActive` 失败过，别每帧重试 */
+    private static boolean displayFocusFailed;
+
     private ColoryrInput() {
     }
 
@@ -137,6 +140,35 @@ public final class ColoryrInput {
     /** 取出一条鼠标事件，没有时返回 null */
     static InputEvent pollMouse() {
         return MOUSE_EVENTS.poll();
+    }
+
+    /**
+     * 上报 LWJGL2 窗口的聚焦状态
+     *
+     * LWJGL2 没有 GLFW 的窗口属性接口，用 `Display.isActive()` 判断；
+     * 每帧调用一次，状态变化才由 {@link ColoryrPackBuilder#setFocus(boolean)} 发送。
+     *
+     * - `mouseClass`: 游戏实际加载的 `org.lwjgl.input.Mouse`
+     */
+    private static void checkDisplayFocus(Class<?> mouseClass) {
+        if (displayIsActive == null && !displayFocusFailed) {
+            try {
+                Class<?> display = Class.forName("org.lwjgl.opengl.Display", false,
+                        mouseClass.getClassLoader());
+                displayIsActive = display.getMethod("isActive");
+            } catch (Throwable e) {
+                displayFocusFailed = true;
+                return;
+            }
+        }
+        if (displayIsActive == null) {
+            return;
+        }
+        try {
+            ColoryrPackBuilder.setFocus((Boolean) displayIsActive.invoke(null));
+        } catch (Throwable e) {
+            displayFocusFailed = true;
+        }
     }
 
     /** 鼠标是否处于抓取状态 */
@@ -212,6 +244,7 @@ public final class ColoryrInput {
      */
     public static void dispatchMouse(Class<?> mouseClass) {
         try {
+            checkDisplayFocus(mouseClass);
             if (!mouseReady) {
                 initMouse(mouseClass);
             }
