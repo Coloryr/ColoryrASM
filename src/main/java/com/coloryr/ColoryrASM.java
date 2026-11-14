@@ -3,6 +3,7 @@ package com.coloryr;
 import com.coloryr.asms.CursorAsm;
 import com.coloryr.asms.Lwjgl2Asm;
 import com.coloryr.asms.Lwjgl3Asm;
+import com.coloryr.asms.SdlAsm;
 import com.coloryr.asms.SocketAsm;
 
 import java.lang.instrument.Instrumentation;
@@ -62,6 +63,7 @@ public class ColoryrASM {
         inst.addTransformer(new Lwjgl2Asm());
         inst.addTransformer(new Lwjgl3Asm());
         inst.addTransformer(new CursorAsm());
+        inst.addTransformer(new SdlAsm());
         inst.addTransformer(new SocketAsm());
     }
 }

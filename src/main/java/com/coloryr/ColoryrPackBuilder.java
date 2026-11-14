@@ -10,6 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
 /**
  * 与启动器之间的消息构建与解析
  *
@@ -23,13 +26,17 @@ import java.util.concurrent.ConcurrentLinkedDeque;
  * - 7 键盘按键：key(i32) + down(bool)，key 为 GLFW 键码
  * - 8 鼠标滚轮：amount(i32)，正数向上
  * - 10 窗口标题：标题字符串
- * - 12 连接验证：密钥字符串，连接建立后由启动器最先发送
+ * - 14 连接挑战：挑战串，连接建立后由启动器最先发送，每条连接都不同
+ * - 16 验证结果：无消息体，只在应答通过后下发
  *
  * 游戏发往启动器的消息：
  * - 1 鼠标状态：uuid 字符串 + 是否抓取鼠标
  * - 9 游戏通道：uuid 字符串
  * - 11 窗口大小：uuid 字符串 + 宽 + 高
  * - 13 窗口聚焦：uuid 字符串 + 是否在前台，状态变化时才发
+ * - 15 连接应答：HMAC-SHA256(启动参数里的密钥, 挑战串) 的小写十六进制，64 个字符
+ *
+ * 握手失败时启动器不回「验证结果」而是直接断开，本端收不到它即视为未通过。
  */
 public class ColoryrPackBuilder {
 
@@ -44,8 +51,52 @@ public class ColoryrPackBuilder {
     public static final int TypeGameChannel = 9;
     public static final int TypeSetTitle = 10;
     public static final int TypeGameWindowSize = 11;
-    public static final int TypeGameAuth = 12;
     public static final int TypeGameWindowFocus = 13;
+    public static final int TypeGameChallenge = 14;
+    public static final int TypeGameAuthProof = 15;
+    public static final int TypeGameAuthResult = 16;
+
+    /** 十六进制小写字母表，算连接应答时用 */
+    private static final char[] HEX = "0123456789abcdef".toCharArray();
+
+    /** 上次上报的窗口尺寸，变化才发 */
+    private static int lastWindowWidth = -1;
+    private static int lastWindowHeight = -1;
+
+    /**
+     * 上报游戏窗口尺寸
+     *
+     * 启动器侧按实例记下来，手柄映射算光标位移时要用；尺寸没变就不发
+     *
+     * @param width  窗口宽度，单位像素
+     * @param height 窗口高度，单位像素
+     */
+    public static void setWindowSize(int width, int height) {
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        if (width == lastWindowWidth && height == lastWindowHeight) {
+            return;
+        }
+        lastWindowWidth = width;
+        lastWindowHeight = height;
+        if (!ColoryrASM.run) {
+            if (ColoryrASM.init) {
+                return;
+            }
+            ColoryrASM.init();
+            if (!ColoryrASM.run) {
+                return;
+            }
+        }
+        ByteBuf buf = Unpooled.buffer();
+        buf.writeInt(TypeGameWindowSize);
+        buf.writeInt(ColoryrASM.uuidBytes.length);
+        buf.writeBytes(ColoryrASM.uuidBytes);
+        buf.writeInt(width);
+        buf.writeInt(height);
+        ColoryrASM.client.sendMessage(buf);
+    }
 
     /** 消息类型头的长度，单位字节 */
     private static final int PACK_HEADER_SIZE = 4;
@@ -194,6 +245,52 @@ public class ColoryrPackBuilder {
         return buf;
     }
 
+    /**
+     * 用挑战串计算连接应答
+     *
+     * 应答是 HMAC-SHA256(启动参数里的密钥, 挑战串) 的小写十六进制。密钥不过网，
+     * 挑战串每条连接都换，算出来的结果无法反推密钥、也不能拿到别的连接上用。
+     *
+     * @param nonce 启动器下发的挑战串
+     * @return 64 个字符的小写十六进制串；算不出来时返回 null
+     */
+    static String authProof(String nonce) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(ColoryrASM.key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] out = mac.doFinal(nonce.getBytes(StandardCharsets.UTF_8));
+            char[] hex = new char[out.length * 2];
+            for (int i = 0; i < out.length; i++) {
+                int value = out[i] & 0xFF;
+                hex[i * 2] = HEX[value >>> 4];
+                hex[i * 2 + 1] = HEX[value & 0x0F];
+            }
+            return new String(hex);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * 构建连接应答消息
+     *
+     * @param nonce 启动器下发的挑战串
+     * @return 应答消息；算不出应答时返回 null，调用方应断开连接
+     */
+    public static ByteBuf buildAuthProof(String nonce) {
+        String proof = authProof(nonce);
+        if (proof == null) {
+            return null;
+        }
+        ByteBuf buf = Unpooled.buffer();
+        buf.writeInt(TypeGameAuthProof);
+        byte[] bytes = proof.getBytes(StandardCharsets.UTF_8);
+        buf.writeInt(bytes.length);
+        buf.writeBytes(bytes);
+        return buf;
+    }
+
     static String readString(ByteBuf buf) {
         int len = buf.readInt();
         byte[] temp = new byte[len];
@@ -242,7 +339,8 @@ public class ColoryrPackBuilder {
                 int end = stringEnd(buf, offset);
                 return end <= 0 ? end : end - base;
             }
-            case TypeGameAuth: {
+            case TypeGameChallenge:
+            case TypeGameAuthProof: {
                 int end = stringEnd(buf, offset);
                 return end <= 0 ? end : end - base;
             }
@@ -296,6 +394,9 @@ public class ColoryrPackBuilder {
             case TypeSetTitle:
                 String title = readString(buf);
                 try {
+                    if (ColoryrSdl.setTitle(title)) {
+                        break;
+                    }
                     if (ColoryrASM.isLwjgl3) {
                         Class<?> glfwClass = Class.forName("org.lwjgl.glfw.GLFW");
                         Method setWindowTitleMethod = glfwClass.getDeclaredMethod("glfwSetWindowTitle", long.class, CharSequence.class);

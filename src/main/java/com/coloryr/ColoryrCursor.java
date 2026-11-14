@@ -58,12 +58,14 @@ public final class ColoryrCursor {
             if (cursor.requestedMode == -1) {
                 cursor.requestedMode = mode;
             }
-            if (cursor.requestedMode != GLFW_CURSOR_NORMAL || mode == GLFW_CURSOR_DISABLED) {
-                return;
-            }
+            // 尺寸上报与抓取状态无关，先报再决定要不要画光标
             cursor.getWindowSize.invoke(null, handle, cursor.width, cursor.height);
             int width = cursor.width.get(0);
             int height = cursor.height.get(0);
+            ColoryrPackBuilder.setWindowSize(width, height);
+            if (cursor.requestedMode != GLFW_CURSOR_NORMAL || mode == GLFW_CURSOR_DISABLED) {
+                return;
+            }
             cursor.getFramebufferSize.invoke(null, handle, cursor.fbWidth, cursor.fbHeight);
             int fbWidth = cursor.fbWidth.get(0);
             int fbHeight = cursor.fbHeight.get(0);
@@ -119,6 +121,7 @@ public final class ColoryrCursor {
             if (width <= 0 || height <= 0) {
                 return;
             }
+            ColoryrPackBuilder.setWindowSize(width, height);
             if (cursor.renderer == null) {
                 cursor.renderer = new ColoryrCursorRenderer(display.getClassLoader(), false);
             }

@@ -219,12 +219,17 @@ public final class ColoryrInput {
 
             InputEvent event;
             while ((event = KEY_EVENTS.poll()) != null) {
+                // 协议里是 GLFW 键码，LWJGL2 的 Keyboard 用自己那套编号
+                event.key = lwjgl2Key(event.key);
+                if (event.key <= 0) {
+                    continue;
+                }
                 if (event.down) {
                     HELD_KEYS.add(event.key);
                 } else {
                     HELD_KEYS.remove(event.key);
                 }
-                if (event.key >= 0 && event.key < keyDownBuffer.capacity()) {
+                if (event.key < keyDownBuffer.capacity()) {
                     keyDownBuffer.put(event.key, (byte) (event.down ? 1 : 0));
                 }
                 appendKeyEvent(readBuffer, event);
@@ -460,7 +465,7 @@ public final class ColoryrInput {
         }
         buffer.limit(buffer.capacity());
         buffer.position(limit);
-        buffer.putInt(event.key & 0xFF);
+        buffer.putInt(event.key);
         buffer.put((byte) (event.down ? 1 : 0));
         buffer.putInt(0);
         buffer.putLong(System.nanoTime());
@@ -530,6 +535,92 @@ public final class ColoryrInput {
         }
         buffer.putInt(x);
         buffer.putInt(y);
+    }
+
+    /** GLFW 的 A..Z 对应 LWJGL2 键码 */
+    private static final int[] LWJGL2_LETTERS = {
+            30, 48, 46, 32, 18, 33, 34, 35, 23, 36, 37, 38, 50,
+            49, 24, 25, 16, 19, 31, 20, 22, 47, 17, 45, 21, 44,
+    };
+    /** GLFW 的 0..9 对应 LWJGL2 键码 */
+    private static final int[] LWJGL2_DIGITS = {11, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    /** GLFW 的小键盘 0..9 对应 LWJGL2 键码 */
+    private static final int[] LWJGL2_NUMPAD = {82, 79, 80, 81, 75, 76, 77, 71, 72, 73};
+
+    /**
+     * GLFW 键码转 LWJGL2 的 Keyboard 键码
+     *
+     * 两套编号完全不同（GLFW 的 ESCAPE 是 256，LWJGL2 是 1），按位截断会让大部分
+     * 按键失效。返回 0 表示这个键在 LWJGL2 侧没有对应项。
+     *
+     * @param key GLFW 键码
+     * @return LWJGL2 的键码，没有对应项时为 0
+     */
+    private static int lwjgl2Key(int key) {
+        if (key >= 'A' && key <= 'Z') {
+            return LWJGL2_LETTERS[key - 'A'];
+        }
+        if (key >= '0' && key <= '9') {
+            return LWJGL2_DIGITS[key - '0'];
+        }
+        if (key >= 320 && key <= 329) {
+            return LWJGL2_NUMPAD[key - 320];
+        }
+        if (key >= 290 && key <= 301) {
+            if (key <= 298) {
+                return 59 + (key - 290);
+            }
+            return key == 299 ? 68 : key == 300 ? 87 : 88;
+        }
+        switch (key) {
+            case 32: return 57;   // SPACE
+            case 39: return 40;   // APOSTROPHE
+            case 44: return 51;   // COMMA
+            case 45: return 12;   // MINUS
+            case 46: return 52;   // PERIOD
+            case 47: return 53;   // SLASH
+            case 59: return 39;   // SEMICOLON
+            case 61: return 13;   // EQUAL
+            case 91: return 26;   // LEFT_BRACKET
+            case 92: return 43;   // BACKSLASH
+            case 93: return 27;   // RIGHT_BRACKET
+            case 96: return 41;   // GRAVE
+            case 256: return 1;   // ESCAPE
+            case 257: return 28;  // ENTER
+            case 258: return 15;  // TAB
+            case 259: return 14;  // BACKSPACE
+            case 260: return 210; // INSERT
+            case 261: return 211; // DELETE
+            case 262: return 205; // RIGHT
+            case 263: return 203; // LEFT
+            case 264: return 208; // DOWN
+            case 265: return 200; // UP
+            case 266: return 201; // PAGE_UP
+            case 267: return 209; // PAGE_DOWN
+            case 268: return 199; // HOME
+            case 269: return 207; // END
+            case 280: return 58;  // CAPS_LOCK
+            case 281: return 70;  // SCROLL_LOCK
+            case 282: return 69;  // NUM_LOCK
+            case 283: return 183; // PRINT_SCREEN
+            case 284: return 197; // PAUSE
+            case 330: return 83;  // KP_DECIMAL
+            case 331: return 181; // KP_DIVIDE
+            case 332: return 55;  // KP_MULTIPLY
+            case 333: return 74;  // KP_SUBTRACT
+            case 334: return 78;  // KP_ADD
+            case 335: return 156; // KP_ENTER
+            case 336: return 141; // KP_EQUAL
+            case 340: return 42;  // LEFT_SHIFT
+            case 341: return 29;  // LEFT_CONTROL
+            case 342: return 56;  // LEFT_ALT
+            case 343: return 219; // LEFT_SUPER
+            case 344: return 54;  // RIGHT_SHIFT
+            case 345: return 157; // RIGHT_CONTROL
+            case 346: return 184; // RIGHT_ALT
+            case 347: return 220; // RIGHT_SUPER
+            default: return 0;
+        }
     }
 
     private static void printLwjgl2Error(boolean keyboard, Throwable e) {

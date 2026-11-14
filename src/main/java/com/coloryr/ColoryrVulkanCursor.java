@@ -121,6 +121,11 @@ public final class ColoryrVulkanCursor {
     }
 
     public static int present(Object queue, long info) {
+        // SDL 窗口下每帧的输入、焦点与光标位置都在这里推进；GLFW 路径下是空操作
+        try {
+            ColoryrSdl.onVulkanFrame();
+        } catch (Throwable ignored) {
+        }
         Class<?> type;
         try {
             type = backend(queue.getClass().getClassLoader());
@@ -172,15 +177,26 @@ public final class ColoryrVulkanCursor {
     }
 
     public static double[] frame(Class<?> api, long window, int width, int height) throws Exception {
+        if (api != null && api.getName().startsWith("org.lwjgl.sdl")) {
+            return ColoryrSdl.vulkanFrame(width, height);
+        }
         ColoryrCursorFrame frame = ColoryrCursor.glfwFrame(api.getClassLoader(), window, width, height);
         return frame == null ? null : new double[]{frame.x, frame.y, frame.sizeX, frame.sizeY};
     }
 
     public static void activate(long window) throws Exception {
+        if (ColoryrSdl.isAttached()) {
+            ColoryrSdl.activate(window);
+            return;
+        }
         ColoryrCursor.activateGlfw(window);
     }
 
     public static void restore(long window) {
+        if (ColoryrSdl.isAttached()) {
+            ColoryrSdl.restore(window);
+            return;
+        }
         ColoryrCursor.restoreGlfw(window);
     }
 
