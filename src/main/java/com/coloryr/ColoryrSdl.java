@@ -281,9 +281,12 @@ public final class ColoryrSdl {
                             (byte) pending.button, pending.down, (byte) 1, pending.x, pending.y);
                     break;
                 case EVENT_MOUSE_WHEEL:
+                    // set(type, timestamp, windowID, which, x, y, direction,
+                    //     mouseX, mouseY, integerX, integerY)
+                    // 上下滚动写在 y / integer_y，x 是横向滚动，写反了游戏只会看到横向输入
                     wheelSet.invoke(eventWheel.invoke(event), pending.type, 0L, windowId, 0,
-                            pending.wheel, 0.0F, 0, pending.x, pending.y,
-                            (int) pending.wheel, 0);
+                            0.0F, pending.wheel, 0, pending.x, pending.y,
+                            0, (int) pending.wheel);
                     break;
                 default:
                     return false;
