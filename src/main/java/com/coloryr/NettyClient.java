@@ -7,22 +7,35 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
-public class NettyClient {
+import java.util.concurrent.TimeUnit;
+
+public class NettyClient implements AutoCloseable {
 
     private final String host;
     private final Integer port;
+    private final NioEventLoopGroup group;
     private final Bootstrap bootstrap;
-    private Channel channel;
+    private volatile Channel channel;
 
     public NettyClient(String host, Integer port) throws Exception {
         this.host = host;
         this.port = port;
+        // 非 daemon 的事件循环会让游戏关掉后 JVM 一直不退出（26.3 的退出 watchdog 会报崩溃）
+        this.group = new NioEventLoopGroup(1, runnable -> {
+            Thread thread = new Thread(runnable, "coloryrasm-netty");
+            thread.setDaemon(true);
+            return thread;
+        });
         this.bootstrap = setup();
-        this.run();
+        try {
+            this.run();
+        } catch (Exception e) {
+            close();
+            throw e;
+        }
     }
 
     private Bootstrap setup() {
-        EventLoopGroup group = new NioEventLoopGroup();
         return new Bootstrap()
                 .group(group)
                 .channel(NioSocketChannel.class)
@@ -41,8 +54,20 @@ public class NettyClient {
     }
 
     public void sendMessage(ByteBuf pack) {
-        if (channel != null && channel.isWritable()) {
-            channel.writeAndFlush(pack);
+        Channel current = channel;
+        if (current != null && current.isWritable()) {
+            current.writeAndFlush(pack);
         }
+    }
+
+    /** 关闭连接与事件循环；daemon 只是兜底，正常退出仍应走这里释放 socket */
+    @Override
+    public void close() {
+        Channel current = channel;
+        channel = null;
+        if (current != null) {
+            current.close();
+        }
+        group.shutdownGracefully(0, 2, TimeUnit.SECONDS);
     }
 }

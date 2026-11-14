@@ -215,6 +215,8 @@ class CursorRendererTest {
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
             glDisable(GL_RASTERIZER_DISCARD);
             glfwSetCursorPos(window, 20, 30);
+            ColoryrPointer.reset();
+            ColoryrPointer.injected();
             ColoryrCursor.beforeGlfwSwap(GLFW.class, window);
             assertEquals(GLFW_CURSOR_HIDDEN, glfwGetInputMode(window, GLFW_CURSOR));
             assertEquals(GLFW_CURSOR_DISABLED,
@@ -231,6 +233,7 @@ class CursorRendererTest {
             glDeleteFramebuffers(framebuffer);
             assertEquals(GL_NO_ERROR, glGetError());
         } finally {
+            ColoryrPointer.reset();
             if (renderer != null) {
                 renderer.close();
             }

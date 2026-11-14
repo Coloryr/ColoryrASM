@@ -184,7 +184,8 @@ public final class ColoryrSdl {
      * @return 依次为 x、y、宽、高；不在光标模式或位置在窗口外时返回 null
      */
     public static double[] vulkanFrame(int width, int height) {
-        if (failed || !ready || window == 0L || grabbed || !ColoryrCursor.ENABLED) {
+        if (failed || !ready || window == 0L || grabbed || !ColoryrCursor.ENABLED
+                || !ColoryrPointer.isGamepad()) {
             return null;
         }
         try {
@@ -458,6 +459,7 @@ public final class ColoryrSdl {
             return;
         }
 
+        boolean warped = false;
         if (pendingX != 0 || pendingY != 0) {
             getMouseState.invoke(null, MOUSE_X, MOUSE_Y);
             float x = MOUSE_X.get(0) + (float) pendingX;
@@ -466,12 +468,28 @@ public final class ColoryrSdl {
             pendingY = 0;
             x = Math.max(0.0F, Math.min(ww - 1.0F, x));
             y = Math.max(0.0F, Math.min(wh - 1.0F, y));
+            ColoryrPointer.warp(x, y);
             warpMouse.invoke(null, handle, x, y);
+            warped = true;
         }
 
         getMouseState.invoke(null, MOUSE_X, MOUSE_Y);
-        lastX = MOUSE_X.get(0);
-        lastY = MOUSE_Y.get(0);
+        float x = MOUSE_X.get(0);
+        float y = MOUSE_Y.get(0);
+        if (!warped && ColoryrPointer.isGamepad()) {
+            ColoryrPointer.ensureBaseline(x, y);
+            ColoryrPointer.realCursor(x, y);
+        }
+        lastX = x;
+        lastY = y;
+        if (!ColoryrPointer.isGamepad()) {
+            // 鼠标模式：系统指针显示，不画软件指针
+            if (cursorHidden) {
+                showCursor.invoke(null);
+                cursorHidden = false;
+            }
+            return;
+        }
         if (!cursorHidden) {
             hideCursor.invoke(null);
             cursorHidden = true;

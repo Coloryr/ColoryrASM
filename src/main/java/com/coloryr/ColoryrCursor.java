@@ -34,7 +34,8 @@ public final class ColoryrCursor {
         GlfwCursor cursor = window(window);
         if (!cursor.settingMode) {
             cursor.requestedMode = value;
-            if ((cursor.renderer != null || cursor.vulkanReady) && !cursor.failed && value == GLFW_CURSOR_NORMAL) {
+            if ((cursor.renderer != null || cursor.vulkanReady) && !cursor.failed
+                    && ColoryrPointer.isGamepad() && value == GLFW_CURSOR_NORMAL) {
                 return GLFW_CURSOR_HIDDEN;
             }
         }
@@ -66,6 +67,13 @@ public final class ColoryrCursor {
             if (cursor.requestedMode != GLFW_CURSOR_NORMAL || mode == GLFW_CURSOR_DISABLED) {
                 return;
             }
+            if (!ColoryrPointer.isGamepad()) {
+                // 鼠标模式：系统指针照常显示，不画软件指针
+                if (mode == GLFW_CURSOR_HIDDEN) {
+                    cursor.setMode(handle, GLFW_CURSOR_NORMAL);
+                }
+                return;
+            }
             cursor.getFramebufferSize.invoke(null, handle, cursor.fbWidth, cursor.fbHeight);
             int fbWidth = cursor.fbWidth.get(0);
             int fbHeight = cursor.fbHeight.get(0);
@@ -75,6 +83,14 @@ public final class ColoryrCursor {
             cursor.getCursorPos.invoke(null, handle, cursor.x, cursor.y);
             double x = cursor.x.get(0);
             double y = cursor.y.get(0);
+            ColoryrPointer.ensureBaseline(x, y);
+            ColoryrPointer.realCursor(x, y);
+            if (!ColoryrPointer.isGamepad()) {
+                if (mode != GLFW_CURSOR_NORMAL) {
+                    cursor.setMode(handle, GLFW_CURSOR_NORMAL);
+                }
+                return;
+            }
             if (cursor.renderer == null) {
                 cursor.renderer = new ColoryrCursorRenderer(glfw.getClassLoader(), true);
             }
@@ -122,13 +138,26 @@ public final class ColoryrCursor {
                 return;
             }
             ColoryrPackBuilder.setWindowSize(width, height);
+            if (!ColoryrPointer.isGamepad()) {
+                // 鼠标模式：把系统光标放回去，不画软件指针
+                cursor.restore();
+                return;
+            }
+            int cursorX = cursor.api.getX();
+            int cursorY = cursor.api.getY();
+            ColoryrPointer.ensureBaseline(cursorX, cursorY);
+            ColoryrPointer.realCursor(cursorX, cursorY);
+            if (!ColoryrPointer.isGamepad()) {
+                cursor.restore();
+                return;
+            }
             if (cursor.renderer == null) {
                 cursor.renderer = new ColoryrCursorRenderer(display.getClassLoader(), false);
             }
             cursor.hide();
             if (cursor.api.isInsideWindow()) {
-                int x = cursor.api.getX();
-                int y = height - 1 - cursor.api.getY();
+                int x = cursorX;
+                int y = height - 1 - cursorY;
                 if (x >= 0 && y >= 0 && x < width && y < height) {
                     cursor.renderer.draw(width, height, x, y, SIZE, SIZE);
                 }
@@ -168,13 +197,19 @@ public final class ColoryrCursor {
         if (cursor.requestedMode == -1) {
             cursor.requestedMode = mode;
         }
-        if (cursor.requestedMode != GLFW_CURSOR_NORMAL || mode == GLFW_CURSOR_DISABLED) {
+        if (!ColoryrPointer.isGamepad()
+                || cursor.requestedMode != GLFW_CURSOR_NORMAL || mode == GLFW_CURSOR_DISABLED) {
             return null;
         }
         cursor.getWindowSize.invoke(null, handle, cursor.width, cursor.height);
         int width = cursor.width.get(0), height = cursor.height.get(0);
         cursor.getCursorPos.invoke(null, handle, cursor.x, cursor.y);
         double x = cursor.x.get(0), y = cursor.y.get(0);
+        ColoryrPointer.ensureBaseline(x, y);
+        ColoryrPointer.realCursor(x, y);
+        if (!ColoryrPointer.isGamepad()) {
+            return null;
+        }
         if (width <= 0 || height <= 0 || x < 0 || y < 0 || x >= width || y >= height) {
             return null;
         }

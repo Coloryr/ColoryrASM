@@ -45,6 +45,8 @@ class VulkanCursorTest {
         System.setProperty("coloryrasm.cursor.hotspotY", "1");
         try (Context context = new Context()) {
             context.create();
+            ColoryrPointer.reset();
+            ColoryrPointer.injected();
             boolean[] seen = new boolean[context.images.length];
             boolean[] cursorDrawn = new boolean[context.images.length];
             int checkedDrawn = 0, checkedHidden = 0;
@@ -79,6 +81,7 @@ class VulkanCursorTest {
             ColoryrVulkanCursor.destroySwapchain(context.device, context.swapchain);
             assertEquals(GLFW_CURSOR_NORMAL, glfwGetInputMode(context.window, GLFW_CURSOR));
         } finally {
+            ColoryrPointer.reset();
             glfwTerminate();
             restoreProperty("coloryrasm.cursor.texture", oldTexture);
             restoreProperty("coloryrasm.cursor.hotspotX", oldX);

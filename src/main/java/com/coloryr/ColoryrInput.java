@@ -93,6 +93,7 @@ public final class ColoryrInput {
 
     /** 记录一次键盘按键事件 */
     static void key(int key, boolean down) {
+        ColoryrPointer.injected();
         InputEvent event = new InputEvent();
         event.type = EVENT_KEY;
         event.key = key;
@@ -102,6 +103,7 @@ public final class ColoryrInput {
 
     /** 记录一次鼠标按键事件 */
     static void mouseButton(int button, boolean down) {
+        ColoryrPointer.injected();
         InputEvent event = new InputEvent();
         event.type = EVENT_MOUSE_BUTTON;
         event.key = button;
@@ -114,6 +116,7 @@ public final class ColoryrInput {
         if (x == 0 && y == 0) {
             return;
         }
+        ColoryrPointer.injected();
         InputEvent event = new InputEvent();
         event.type = EVENT_MOUSE_MOVE;
         event.x = x;
@@ -126,6 +129,7 @@ public final class ColoryrInput {
         if (amount == 0) {
             return;
         }
+        ColoryrPointer.injected();
         InputEvent event = new InputEvent();
         event.type = EVENT_SCROLL;
         event.amount = amount;
@@ -181,6 +185,9 @@ public final class ColoryrInput {
         if (grabbed != value) {
             mouseMoveX = 0;
             mouseMoveY = 0;
+        }
+        if (!value) {
+            ColoryrPointer.rebase();
         }
         grabbed = value;
     }
@@ -382,6 +389,7 @@ public final class ColoryrInput {
             }
             x = Math.max(0, x);
             y = Math.max(0, y);
+            ColoryrPointer.warp(x, y);
             mouseSetCursorPosition.invoke(null, x, y);
         } catch (Throwable e) {
             printLwjgl2Error(false, e);

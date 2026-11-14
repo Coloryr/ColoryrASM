@@ -52,6 +52,16 @@ public class ColoryrASM {
             client = new NettyClient("127.0.0.1", port1);
             System.out.println("[ColoryrASM] environment initialized.");
             run = true;
+            // 关游戏时主动关掉连接与事件循环，别让 netty 线程拖住 JVM 退出
+            try {
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                    NettyClient current = client;
+                    if (current != null) {
+                        current.close();
+                    }
+                }, "coloryrasm-shutdown"));
+            } catch (Throwable ignored) {
+            }
         } catch (Exception e) {
             System.out.println("[ColoryrASM] environment init fail.");
             e.printStackTrace();

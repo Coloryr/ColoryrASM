@@ -256,6 +256,7 @@ public final class ColoryrGlfw {
      * - `y`: GLFW 给出的绝对坐标
      */
     static void onRealCursor(long window, double x, double y) {
+        ColoryrPointer.realCursor(x, y);
         CallbackRef ref = cursorRef;
         if (ref == null) {
             return;
@@ -317,6 +318,7 @@ public final class ColoryrGlfw {
                 }
             }
 
+            ColoryrPointer.warp(x, y);
             glfwSetCursorPos.invoke(null, window, x, y);
             CallbackRef ref = cursorRef;
             if (ref != null) {
